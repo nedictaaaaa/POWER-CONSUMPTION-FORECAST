@@ -1,11 +1,9 @@
-streamlit
+streamlit==1.27.2
 pandas
 numpy
-tensorflow
 scikit-learn
-matplotlib
-joblib
-openpyxl
+tensorflow==2.11.0
+
 
 
 
