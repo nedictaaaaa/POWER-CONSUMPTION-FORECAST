@@ -1,11 +1,12 @@
 streamlit
 pandas
 numpy
-tensorflow-cpu==2.9.3
+tensorflow
 scikit-learn
 matplotlib
 joblib
 openpyxl
+
 
 
 
