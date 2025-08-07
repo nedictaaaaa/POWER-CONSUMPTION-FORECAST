@@ -1,3 +1,5 @@
+# DASHBOARD.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,110 +8,65 @@ import joblib
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
-# --- SETTINGS ---
-SEQUENCE_LENGTH = 24
+# Page config
+st.set_page_config(page_title="🔮 Power Consumption Forecasting", layout="centered")
+
+# Constants
 MODEL_PATH = "lstm_energy_forecast.h5"
 SCALER_PATH = "scaler.save"
+SEQUENCE_LENGTH = 24
 REQUIRED_FEATURES = ["Temperature", "Humidity", "Total Power Consumption"]
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="⚡ Power Forecast", layout="centered")
-st.title("🔮 Power Consumption Forecasting")
-
-# --- LOAD MODEL AND SCALER ---
+# Load model
 @st.cache_resource
 def load_model():
     return tf.keras.models.load_model(MODEL_PATH)
 
+# Load scaler
 @st.cache_resource
 def load_scaler():
     return joblib.load(SCALER_PATH)
 
-model = load_model()
-scaler = load_scaler()
+# Preprocess data
+def preprocess_data(df, scaler):
+    if not all(col in df.columns for col in REQUIRED_FEATURES):
+        missing = list(set(REQUIRED_FEATURES) - set(df.columns))
+        raise ValueError(f"Missing columns: {missing}")
 
-# --- INPUT PREPARATION ---
-def prepare_input(df):
-    df = df.sort_values("Datetime")
-    used = [f for f in REQUIRED_FEATURES if f in df.columns]
-    missing = list(set(REQUIRED_FEATURES) - set(used))
-    if missing:
-        st.warning(f"Missing features: {', '.join(missing)}")
-    if len(df) < SEQUENCE_LENGTH:
-        st.error("Insufficient data. Need at least 24 rows.")
-        return None
-    df_scaled = scaler.transform(df[REQUIRED_FEATURES])
-    input_seq = df_scaled[-SEQUENCE_LENGTH:]
-    input_seq = input_seq.reshape(1, SEQUENCE_LENGTH, len(REQUIRED_FEATURES))
-    return input_seq
+    df = df[REQUIRED_FEATURES]
+    scaled = scaler.transform(df)
+    
+    X = []
+    for i in range(len(scaled) - SEQUENCE_LENGTH):
+        X.append(scaled[i:i+SEQUENCE_LENGTH])
+    return np.array(X)
 
-# --- FORECAST FUNCTION ---
-def recursive_forecast(df, model, scaler, steps=7):
-    df_scaled = scaler.transform(df[REQUIRED_FEATURES])
-    sequence = df_scaled[-SEQUENCE_LENGTH:].reshape(1, SEQUENCE_LENGTH, len(REQUIRED_FEATURES))
-    forecasts = []
+# App UI
+st.title("🔮 Power Consumption Forecasting")
+st.markdown("Upload a CSV file with columns: `Temperature`, `Humidity`, `Total Power Consumption`")
 
-    for _ in range(steps):
-        pred_scaled = model.predict(sequence, verbose=0)[0][0]
-        next_input = np.array([[[0, 0, pred_scaled]]])  # Fake temperature and humidity
-        sequence = np.concatenate((sequence[:, 1:, :], next_input), axis=1)
-        full_inverse = scaler.inverse_transform([[0, 0, pred_scaled]])
-        forecasts.append(full_inverse[0][2])
-
-    return forecasts
-
-# --- PLOT INPUTS ---
-def plot_inputs(df):
-    st.subheader("📈 Input Trends")
-    fig, ax = plt.subplots()
-    for col in REQUIRED_FEATURES:
-        ax.plot(df["Datetime"].tail(SEQUENCE_LENGTH), df[col].tail(SEQUENCE_LENGTH), label=col)
-    ax.legend()
-    st.pyplot(fig)
-
-# --- PLOT FORECASTS ---
-def plot_forecasts(forecasts):
-    fig, ax = plt.subplots()
-    ax.plot(range(1, len(forecasts) + 1), forecasts, marker='o')
-    ax.set_title("🔮 Forecasted Power Consumption")
-    ax.set_xlabel("Steps Ahead")
-    ax.set_ylabel("Power (units)")
-    st.pyplot(fig)
-
-# --- FILE UPLOAD ---
-uploaded_file = st.file_uploader("📤 Upload cleaned Excel or CSV file", type=["xlsx", "csv"])
+uploaded_file = st.file_uploader("📁 Upload your CSV file", type=["csv"])
 
 if uploaded_file:
     try:
-        if uploaded_file.name.endswith(".xlsx"):
-            df = pd.read_excel(uploaded_file)
-        else:
-            df = pd.read_csv(uploaded_file)
+        df = pd.read_csv(uploaded_file)
+        scaler = load_scaler()
+        X = preprocess_data(df, scaler)
 
-        st.write("### 📄 Data Preview")
-        st.dataframe(df.head())
+        model = load_model()
+        predictions = model.predict(X)
 
-        # Convert datetime column
-        if "Datetime" in df.columns:
-            df["Datetime"] = pd.to_datetime(df["Datetime"])
-        else:
-            st.warning("Datetime column not found. Please ensure it's present.")
-
-        input_seq = prepare_input(df)
-        if input_seq is not None:
-            st.subheader("📅 Forecast Horizon")
-            forecast_steps = st.slider("How many steps ahead?", 1, 24, 7)
-
-            forecasts = recursive_forecast(df, model, scaler, steps=forecast_steps)
-            st.success("✅ Forecast completed!")
-
-            st.markdown("### 🔢 Forecasted Power Consumption")
-            for i, val in enumerate(forecasts, 1):
-                st.write(f"Step {i}: **{val:.2f} units**")
-
-            plot_inputs(df)
-            plot_forecasts(forecasts)
+        # Plot results
+        st.subheader("📈 Forecasted Consumption")
+        fig, ax = plt.subplots()
+        ax.plot(predictions, label="Predicted Consumption", color='blue')
+        ax.set_title("Predicted Power Consumption")
+        ax.set_ylabel("Consumption")
+        ax.set_xlabel("Hour")
+        ax.legend()
+        st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"❌ Failed to process file: {str(e)}")
-
+        st.error(f"❌ Error: {e}")
+else:
+    st.info("Please upload a CSV file to begin.")
