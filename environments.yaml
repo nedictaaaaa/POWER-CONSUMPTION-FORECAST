@@ -1,0 +1,17 @@
+name: energy_forecast_env
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - streamlit
+  - numpy
+  - pandas
+  - scikit-learn
+  - keras
+  - tensorflow
+  - h5py
+  - joblib            # for saving/loading scaler
+  - pip
+  - pip:
+      - -r requirements.txt
