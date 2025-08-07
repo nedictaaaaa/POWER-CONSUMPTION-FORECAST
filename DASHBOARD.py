@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 # --- SETTINGS ---
 SEQUENCE_LENGTH = 24
-MODEL_PATH = r"C:\Users\HP\OneDrive\Desktop\I CANNNNN\lstm_energy_forecast .keras"
+MODEL_PATH = r"C:\Users\HP\OneDrive\Desktop\I CANNNNN\lstm_energy_forecast.keras"
 SCALER_PATH = r"C:\Users\HP\OneDrive\Desktop\I CANNNNN\scaler.save"
 REQUIRED_FEATURES = ["Temperature", "Humidity", "Total Power Consumption"]
 
