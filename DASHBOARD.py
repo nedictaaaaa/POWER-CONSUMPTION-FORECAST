@@ -6,83 +6,93 @@ import joblib
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
-# App config
-st.set_page_config(page_title="🔮 Power Consumption Forecast", layout="centered")
+# --- Streamlit Page Config ---
+st.set_page_config(page_title="🔮 Power Forecast", layout="centered")
 
-# Constants
+# --- Constants ---
 MODEL_PATH = "lstm_energy_forecast.h5"
 SCALER_PATH = "scaler.save"
 SEQUENCE_LENGTH = 24
 REQUIRED_FEATURES = ["Temperature", "Humidity", "Total Power Consumption"]
 
-# Load model
+# --- Load Model and Scaler ---
 @st.cache_resource
 def load_model():
     return tf.keras.models.load_model(MODEL_PATH)
 
-# Load scaler
 @st.cache_resource
 def load_scaler():
     return joblib.load(SCALER_PATH)
 
-# Prepare sequences for prediction
-def prepare_sequence(data, steps):
-    sequence = data[-SEQUENCE_LENGTH:]  # Last 24 hours
-    predictions = []
+# --- Preprocessing ---
+def preprocess_data(df, scaler):
+    df = df[REQUIRED_FEATURES]
+    scaled = scaler.transform(df)
+    X = []
+    for i in range(len(scaled) - SEQUENCE_LENGTH):
+        X.append(scaled[i:i+SEQUENCE_LENGTH])
+    return np.array(X), scaled
 
-    for _ in range(steps):
-        input_seq = sequence.reshape((1, SEQUENCE_LENGTH, -1))
-        next_pred = model.predict(input_seq, verbose=0)[0][0]
-        last_known = sequence[-1].copy()
-        last_known[2] = next_pred  # Replace Consumption with prediction
-        sequence = np.vstack([sequence[1:], last_known])
-        predictions.append(next_pred)
+# --- Forecasting Future Steps ---
+def forecast_future(scaled_data, model, steps_ahead):
+    input_seq = scaled_data[-SEQUENCE_LENGTH:]
+    forecasts = []
 
-    return predictions
+    for _ in range(steps_ahead):
+        X_input = input_seq.reshape(1, SEQUENCE_LENGTH, -1)
+        next_pred = model.predict(X_input, verbose=0)[0][0]
 
-# Interface
+        # Create next input row
+        next_input = np.array([input_seq[-1][0], input_seq[-1][1], next_pred])
+        input_seq = np.vstack([input_seq[1:], next_input])
+        forecasts.append(next_pred)
+
+    return forecasts
+
+# --- App UI ---
 st.title("🔮 Power Consumption Forecasting")
-st.markdown("Upload a CSV with `Temperature`, `Humidity`, `Total Power Consumption` to forecast future consumption.")
+st.markdown("Upload a CSV file with **Temperature, Humidity, and Total Power Consumption**.")
 
-uploaded_file = st.file_uploader("📁 Upload CSV file", type=["csv"])
+uploaded_file = st.file_uploader("📁 Upload CSV", type=["csv"])
 
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-
-        # Check required columns
         if not all(col in df.columns for col in REQUIRED_FEATURES):
-            missing = list(set(REQUIRED_FEATURES) - set(df.columns))
-            st.error(f"Missing columns: {missing}")
+            st.error(f"❌ Missing columns: {set(REQUIRED_FEATURES) - set(df.columns)}")
         elif len(df) < SEQUENCE_LENGTH:
-            st.error(f"At least {SEQUENCE_LENGTH} rows are required for forecasting.")
+            st.error(f"❌ Not enough rows. Need at least {SEQUENCE_LENGTH + 1} rows.")
         else:
             scaler = load_scaler()
-            scaled_data = scaler.transform(df[REQUIRED_FEATURES])
+            X, scaled_data = preprocess_data(df, scaler)
             model = load_model()
 
-            steps = st.slider("🔢 How many hours to forecast?", min_value=1, max_value=48, value=12)
-            forecast = prepare_sequence(scaled_data, steps)
-            
-            # Inverse transform just the forecasted consumption
-            dummy = np.zeros((steps, 3))  # 3 features
-            dummy[:, 2] = forecast
-            inv = scaler.inverse_transform(dummy)
-            actual_forecast = inv[:, 2]
+            # Predict for existing data
+            preds = model.predict(X, verbose=0)
 
-            # Show predictions
-            st.subheader("📊 Forecasted Power Consumption")
-            st.line_chart(actual_forecast)
+            # Forecast future
+            st.subheader("🔧 Forecast Settings")
+            steps = st.number_input("How many hours ahead to forecast?", min_value=1, max_value=168, value=24)
+            future_preds = forecast_future(scaled_data, model, steps)
 
-            # Table
-            forecast_df = pd.DataFrame({
-                "Hour Ahead": np.arange(1, steps+1),
-                "Predicted Consumption": actual_forecast
-            })
-            st.dataframe(forecast_df)
+            # Inverse transform for readability
+            dummy = np.zeros((steps, 3))
+            dummy[:, 2] = future_preds
+            future_consumption = scaler.inverse_transform(dummy)[:, 2]
+
+            # --- Display results ---
+            st.subheader("📊 Predicted Consumption (Historical + Forecast)")
+            fig, ax = plt.subplots()
+            ax.plot(df["Total Power Consumption"].values[-len(preds):], label="Actual")
+            ax.plot(preds, label="Predicted (Historical)", linestyle="dashed")
+            ax.plot(range(len(preds), len(preds)+steps), future_consumption, label="Forecast", color="green")
+            ax.set_xlabel("Time Steps")
+            ax.set_ylabel("Power Consumption")
+            ax.set_title("Power Consumption Forecast")
+            ax.legend()
+            st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"❌ Error: {e}")
-
+        st.error(f"❌ Something went wrong: {e}")
 else:
-    st.info("Please upload a valid CSV to begin.")
+    st.info("Upload a CSV file with the required structure to begin.")
