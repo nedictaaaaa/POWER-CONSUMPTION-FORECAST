@@ -17,7 +17,7 @@ REQUIRED_FEATURES = ["Temperature", "Humidity", "Total Power Consumption"]
 # --- Load model and scaler ---
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model(MODEL_PATH)
+    return tf.h5.models.load_model(MODEL_PATH)
 
 @st.cache_resource
 def load_scaler():
