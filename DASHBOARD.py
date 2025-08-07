@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import streamlit as st
 st.set_page_config(page_title="⚡ Power Forecast", layout="centered")
 
@@ -216,4 +215,4 @@ if uploaded_file:
         except Exception as e:
             st.error(f"Forecasting failed: {str(e)}")
 
->>>>>>> d496e8ae1aa69c2d6e02140d920add19bf44867a
+
