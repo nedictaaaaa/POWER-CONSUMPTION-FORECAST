@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 # --- SETTINGS ---
 SEQUENCE_LENGTH = 24
 MODEL_PATH = "lstm_energy_forecast.h5"
-SCALER_PATH = "scaler (1).save"
+SCALER_PATH = "scaler.save"
 REQUIRED_FEATURES = ["Temperature", "Humidity", "Total Power Consumption"]
 
 # --- Load model and scaler ---
