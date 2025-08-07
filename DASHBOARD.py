@@ -11,7 +11,7 @@ st.set_page_config(page_title="⚡ Power Forecast", layout="centered")
 st.title("🔮 Power Consumption Forecasting")
 
 SEQUENCE_LENGTH = 24
-MODEL_PATH = "lstm_energy_forecast.h5"
+MODEL_PATH = "lstm_energy_forecast_.h5"
 SCALER_PATH = "scaler (1).save"
 REQUIRED_FEATURES = ["Temperature", "Humidity", "Total Power Consumption"]
 
